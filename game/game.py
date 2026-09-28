@@ -3,6 +3,8 @@ import yaml
 import pygame
 
 from game.entities import Attacker, SecurityUnit, Barrier
+from game.events import EventSystem
+from game.map import CongressMap
 
 
 class Game:
@@ -16,41 +18,49 @@ class Game:
         self.height = int(self.cfg["screen"]["height"])
         self.fps = int(self.cfg["screen"]["fps"])
         self.screen = pygame.display.set_mode((self.width, self.height))
-        pygame.display.set_caption("Congreso Defense - Prototype")
+        pygame.display.set_caption("Defensa del Congreso - Operativo Caotico")
         self.clock = pygame.time.Clock()
-        self.font = pygame.font.SysFont("Arial", 20)
+        self.font = pygame.font.SysFont("Arial", 19)
         self.small_font = pygame.font.SysFont("Arial", 14)
         self.tiny_font = pygame.font.SysFont("Arial", 11)
 
-        self.money = int(self.cfg["game"]["money"])
-        self.lives = int(self.cfg["game"]["lives"])
+        self.map = CongressMap(self.cfg["map"])
+        ev_cfg = self.cfg.get("event_system", {})
+        self.events = EventSystem(
+            self.cfg.get("events", []),
+            ev_cfg.get("min_delay", 18),
+            ev_cfg.get("max_delay", 32),
+        )
 
         self.attackers = []
         self.security_units = []
         self.barriers = []
         self.effects = []
+        self.selected_units = []
 
-        g = self.cfg["goal"]
-        self.goal_rect = pygame.Rect(g["x"], g["y"], g["width"], g["height"])
-        self.goal_center = self.goal_rect.center
+        self.reserves = dict(self.cfg["reserves"])
+        self.placement_mode = "infanteria"
+
+        self.invasion_pressure = 0.0
+        self.survival_time = 0.0
+        self.preparation_time = float(self.cfg["game"].get("preparation_time", 12))
+        self.game_over = False
+        self.paused = False
 
         self.wave_index = 0
         self.wave_running = False
         self.wave_queue = []
         self.spawn_timer = 0.0
+        self.next_wave_timer = 0.0
+        self.event_message = "Prepare el operativo."
+        self.event_message_timer = 4.0
 
-        self.mode = "infanteria"
-        self.paused = False
-        self.game_over = False
-
-    def start_wave(self):
-        if self.wave_running or self.wave_index >= len(self.cfg["waves"]):
-            return
-
-        wave = self.cfg["waves"][self.wave_index]
+    def begin_wave(self):
+        wave = self.cfg["waves"][self.wave_index % len(self.cfg["waves"])]
+        escalation = 1 + self.wave_index // len(self.cfg["waves"])
         queue = []
         for kind, count in wave["composition"].items():
-            queue.extend([kind] * int(count))
+            queue.extend([kind] * int(count * escalation))
         random.shuffle(queue)
         self.wave_queue = queue
         self.spawn_timer = 0.0
@@ -58,30 +68,66 @@ class Game:
 
     def spawn_attacker(self, kind):
         spawn = random.choice(self.cfg["spawn_points"])
-        pos = (spawn[0], spawn[1] + random.randint(-28, 28))
-        self.attackers.append(
-            Attacker(pos, kind, self.cfg["attackers"][kind], self.goal_center)
-        )
+        pos = pygame.Vector2(spawn["pos"])
+        pos.y += random.randint(-16, 16)
+        route = self.cfg["routes"][spawn["route"]]
+        self.attackers.append(Attacker(pos, kind, self.cfg["attackers"][kind], route))
 
-    def place_object(self, pos):
-        if self.mode == "barrier":
-            cost = int(self.cfg["barrier"]["cost"])
-            if self.money >= cost:
-                self.barriers.append(Barrier(pos, self.cfg["barrier"]))
-                self.money -= cost
+    def deploy(self, pos):
+        if self.placement_mode == "barrier":
+            if self.reserves.get("barrier", 0) <= 0:
+                return
+            self.barriers.append(Barrier(pos, self.cfg["barrier"]))
+            self.reserves["barrier"] -= 1
             return
 
-        cfg = self.cfg["security"][self.mode]
-        cost = int(cfg["cost"])
-        if self.money >= cost:
-            self.security_units.append(SecurityUnit(pos, self.mode, cfg))
-            self.money -= cost
+        if self.reserves.get(self.placement_mode, 0) <= 0:
+            return
+        unit = SecurityUnit(pos, self.placement_mode, self.cfg["security"][self.placement_mode])
+        self.security_units.append(unit)
+        self.reserves[self.placement_mode] -= 1
+
+    def select_at(self, pos, additive=False):
+        point = pygame.Vector2(pos)
+        candidates = [u for u in self.security_units if u.pos.distance_to(point) <= u.radius + 8]
+        if not additive:
+            for unit in self.security_units:
+                unit.selected = False
+            self.selected_units = []
+        if candidates:
+            unit = min(candidates, key=lambda u: u.pos.distance_to(point))
+            unit.selected = True
+            if unit not in self.selected_units:
+                self.selected_units.append(unit)
+            return True
+        return False
+
+    def order_move(self, pos):
+        if not self.selected_units:
+            return
+        target = pygame.Vector2(pos)
+        spacing = 24
+        n = len(self.selected_units)
+        for i, unit in enumerate(self.selected_units):
+            offset = pygame.Vector2((i - (n - 1) / 2) * spacing, 0)
+            unit.move_to(target + offset)
+
+    def hold_selected(self):
+        for unit in self.selected_units:
+            unit.hold()
 
     def update_wave(self, dt):
-        if not self.wave_running:
+        if self.preparation_time > 0:
+            self.preparation_time -= dt
             return
 
-        wave = self.cfg["waves"][self.wave_index]
+        if not self.wave_running:
+            self.next_wave_timer -= dt
+            if self.next_wave_timer <= 0:
+                self.begin_wave()
+            return
+
+        wave = self.cfg["waves"][self.wave_index % len(self.cfg["waves"])]
         if self.wave_queue:
             self.spawn_timer -= dt
             if self.spawn_timer <= 0:
@@ -90,17 +136,32 @@ class Game:
         elif not any(a.alive for a in self.attackers):
             self.wave_running = False
             self.wave_index += 1
+            self.next_wave_timer = max(2.0, 7.0 - self.wave_index * 0.25)
+
+    def handle_event(self, event):
+        if not event:
+            return
+        self.event_message = event["message"]
+        self.event_message_timer = 5.5
+        for kind, count in event.get("composition", {}).items():
+            self.wave_queue.extend([kind] * int(count))
+        random.shuffle(self.wave_queue)
+        if event.get("pressure"):
+            self.invasion_pressure += float(event["pressure"])
 
     def update(self, dt):
         if self.paused or self.game_over:
             return
 
+        self.survival_time += dt
+        self.event_message_timer = max(0.0, self.event_message_timer - dt)
         self.update_wave(dt)
+        self.handle_event(self.events.update(dt))
 
         for attacker in self.attackers:
             attacker.update(dt, self.barriers, self.security_units)
             if attacker.reached_goal:
-                self.lives -= 1
+                self.invasion_pressure += attacker.breach_power
                 attacker.reached_goal = False
 
         for unit in self.security_units:
@@ -109,77 +170,68 @@ class Game:
                 for target in affected[:5]:
                     self.effects.append([pygame.Vector2(unit.pos), pygame.Vector2(target.pos), 0.08])
 
-        for attacker in self.attackers:
-            if not attacker.alive and not attacker.rewarded and not attacker.fled:
-                self.money += attacker.reward
-                attacker.rewarded = True
-
         self.attackers = [a for a in self.attackers if a.alive]
 
         for effect in self.effects:
             effect[2] -= dt
         self.effects = [e for e in self.effects if e[2] > 0]
 
-        if self.lives <= 0:
+        if self.invasion_pressure >= 100:
+            self.invasion_pressure = 100
             self.game_over = True
-
-    def draw_map(self):
-        self.screen.fill((225, 220, 205))
-        for y in (120, 300, 480):
-            pygame.draw.rect(self.screen, (190, 185, 170), (0, y, self.width, 120))
-            for x in range(0, self.width, 60):
-                pygame.draw.line(self.screen, (230, 225, 215), (x, y + 60), (x + 25, y + 60), 3)
-
-        pygame.draw.rect(self.screen, (185, 170, 140), self.goal_rect)
-        pygame.draw.rect(self.screen, (100, 90, 75), self.goal_rect, 3)
-        title = self.font.render("CONGRESO", True, (60, 50, 40))
-        self.screen.blit(title, title.get_rect(center=self.goal_rect.center))
+            self.event_message = "El Congreso fue invadido."
 
     def draw_ui(self):
-        pygame.draw.rect(self.screen, (35, 40, 48), (0, 0, self.width, 86))
+        pygame.draw.rect(self.screen, (35, 40, 48), (0, 0, self.width, 88))
+
+        mins = int(self.survival_time // 60)
+        secs = int(self.survival_time % 60)
+        prep = max(0, int(self.preparation_time))
 
         status = (
-            f"Fondos: ${self.money}   Integridad: {self.lives}   "
-            f"Oleada: {min(self.wave_index + 1, len(self.cfg['waves']))}/{len(self.cfg['waves'])}"
+            f"Tiempo {mins:02d}:{secs:02d}   Presion sobre Congreso {self.invasion_pressure:05.1f}%   "
+            f"Oleada {self.wave_index + 1}"
         )
-        self.screen.blit(self.font.render(status, True, (240, 240, 240)), (15, 8))
+        self.screen.blit(self.font.render(status, True, (240, 240, 240)), (14, 8))
+
+        reserve_text = "  ".join(
+            f"{key}:{value}" for key, value in self.reserves.items()
+        )
+        self.screen.blit(self.tiny_font.render("Reservas  " + reserve_text, True, (210, 215, 220)), (14, 35))
 
         controls = (
-            "[1] Infanteria  [2] Goma  [3] Hidrante  [4] Motorizada  "
-            "[5] Infiltrado  [6] Barrera  [SPACE] Oleada  [P] Pausa  [R] Reset"
+            "[1-5] desplegar unidad  [6] valla  click: seleccionar/desplegar  "
+            "click derecho: mover  [H] mantener  [P] pausa  [R] reset"
         )
-        self.screen.blit(self.small_font.render(controls, True, (205, 210, 215)), (15, 39))
+        self.screen.blit(self.small_font.render(controls, True, (205, 210, 215)), (14, 54))
 
-        if self.mode == "barrier":
-            label = f"Modo: Barrera (${self.cfg['barrier']['cost']})"
-        else:
-            c = self.cfg["security"][self.mode]
-            label = f"Modo: {c['label']} (${c['cost']})"
-        self.screen.blit(self.small_font.render(label, True, (255, 220, 120)), (15, 62))
+        mode = self.cfg["security"].get(self.placement_mode, {}).get("label", "Valla")
+        self.screen.blit(self.small_font.render(f"Despliegue: {mode}", True, (255, 220, 120)), (14, 72))
 
-        counts = {}
-        for attacker in self.attackers:
-            counts[attacker.kind] = counts.get(attacker.kind, 0) + 1
-        if counts:
-            x = 810
-            text = "  ".join(f"{k}:{v}" for k, v in counts.items())
-            self.screen.blit(self.tiny_font.render(text, True, (225, 225, 225)), (x, 11))
+        if prep > 0:
+            txt = self.font.render(f"PREPARACION: {prep}s", True, (150, 40, 40))
+            self.screen.blit(txt, txt.get_rect(center=(self.width // 2, 108)))
+
+        if self.event_message_timer > 0 or self.game_over:
+            txt = self.font.render(self.event_message, True, (120, 35, 35))
+            self.screen.blit(txt, txt.get_rect(center=(self.width // 2, 132)))
 
         if self.game_over:
-            text = self.font.render("OPERATIVO SUPERADO - R para reiniciar", True, (180, 30, 30))
-            self.screen.blit(text, text.get_rect(center=(self.width // 2, 105)))
-        elif self.wave_index >= len(self.cfg["waves"]) and not self.wave_running:
-            text = self.font.render("ESCENARIO COMPLETADO", True, (30, 120, 50))
-            self.screen.blit(text, text.get_rect(center=(self.width // 2, 105)))
+            result = self.font.render(
+                f"OPERATIVO FINALIZADO - resistio {mins:02d}:{secs:02d} - R para reiniciar",
+                True,
+                (165, 25, 25),
+            )
+            self.screen.blit(result, result.get_rect(center=(self.width // 2, 160)))
 
     def draw(self):
-        self.draw_map()
+        self.map.draw(self.screen, self.tiny_font)
         mouse = pygame.Vector2(pygame.mouse.get_pos())
 
         for barrier in self.barriers:
             barrier.draw(self.screen)
         for unit in self.security_units:
-            unit.draw(self.screen, show_range=mouse.distance_to(unit.pos) < 28)
+            unit.draw(self.screen, show_range=mouse.distance_to(unit.pos) < 28 or unit.selected)
         for attacker in self.attackers:
             attacker.draw(self.screen, self.tiny_font)
         for start, end, _ in self.effects:
@@ -199,6 +251,7 @@ class Game:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
+
                 elif event.type == pygame.KEYDOWN:
                     key_modes = {
                         pygame.K_1: "infanteria",
@@ -209,16 +262,26 @@ class Game:
                         pygame.K_6: "barrier",
                     }
                     if event.key in key_modes:
-                        self.mode = key_modes[event.key]
-                    elif event.key == pygame.K_SPACE:
-                        self.start_wave()
+                        self.placement_mode = key_modes[event.key]
+                    elif event.key == pygame.K_h:
+                        self.hold_selected()
                     elif event.key == pygame.K_p:
                         self.paused = not self.paused
                     elif event.key == pygame.K_r:
                         self.reset()
-                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    if event.pos[1] > 86:
-                        self.place_object(event.pos)
+
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    if event.pos[1] <= 88:
+                        continue
+                    if event.button == 1:
+                        selected = self.select_at(
+                            event.pos,
+                            additive=bool(pygame.key.get_mods() & pygame.KMOD_SHIFT),
+                        )
+                        if not selected and not self.selected_units:
+                            self.deploy(event.pos)
+                    elif event.button == 3:
+                        self.order_move(event.pos)
 
             self.update(dt)
             self.draw()
