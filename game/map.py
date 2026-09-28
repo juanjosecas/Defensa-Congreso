@@ -2,7 +2,7 @@ import pygame
 
 
 class CongressMap:
-    """Schematic playable map based on the street network around Plaza Congreso."""
+    """Playable map with explicit terrain constraints."""
 
     def __init__(self, cfg):
         self.cfg = cfg
@@ -15,6 +15,38 @@ class CongressMap:
         self.labels = cfg.get("labels", [])
         self.plaza = pygame.Rect(*cfg["plaza_rect"])
         self.congress = pygame.Rect(*cfg["congress_rect"])
+        self.street_rects = [pygame.Rect(*road["rect"]) for road in self.streets]
+
+    def terrain_at(self, point):
+        p = (int(point[0]), int(point[1]))
+        if self.congress.collidepoint(p):
+            return "building"
+        if self.plaza.collidepoint(p):
+            return "plaza"
+        if any(rect.collidepoint(p) for rect in self.street_rects):
+            return "street"
+        return "building"
+
+    def can_enter(self, point, unit_type):
+        terrain = self.terrain_at(point)
+        if unit_type == "motorized":
+            return terrain == "street"
+        if unit_type == "attacker":
+            return terrain in ("street", "plaza")
+        return terrain in ("street", "plaza")
+
+    def clamp_motion(self, old_pos, new_pos, unit_type):
+        if self.can_enter(new_pos, unit_type):
+            return pygame.Vector2(new_pos)
+
+        # Try axis-separated motion before rejecting the step entirely.
+        x_only = pygame.Vector2(new_pos.x, old_pos.y)
+        if self.can_enter(x_only, unit_type):
+            return x_only
+        y_only = pygame.Vector2(old_pos.x, new_pos.y)
+        if self.can_enter(y_only, unit_type):
+            return y_only
+        return pygame.Vector2(old_pos)
 
     def draw(self, screen, font):
         screen.fill(self.bg)
