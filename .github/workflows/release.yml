@@ -1,0 +1,50 @@
+name: Source Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to publish, e.g. v0.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Resolve tag
+        id: tag
+        shell: bash
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            echo "value=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify tag exists
+        run: git rev-parse "refs/tags/${{ steps.tag.outputs.value }}"
+
+      - name: Build source archive
+        run: |
+          mkdir -p dist
+          git archive             --format=zip             --prefix="Defensa-Congreso-${{ steps.tag.outputs.value }}/"             -o "dist/Defensa-Congreso-${{ steps.tag.outputs.value }}.zip"             "${{ steps.tag.outputs.value }}"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "${{ steps.tag.outputs.value }}" >/dev/null 2>&1 ||           gh release create "${{ steps.tag.outputs.value }}"             "dist/Defensa-Congreso-${{ steps.tag.outputs.value }}.zip"             --generate-notes             --title "Defensa Congreso ${{ steps.tag.outputs.value }}"
