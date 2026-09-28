@@ -3,25 +3,24 @@ import pygame
 
 
 class Attacker:
-    def __init__(self, pos, kind, cfg, goal_center):
+    def __init__(self, pos, kind, cfg, route):
         self.kind = kind
         self.label = cfg.get("label", kind)
         self.pos = pygame.Vector2(pos)
-        self.spawn = pygame.Vector2(pos)
-        self.goal = pygame.Vector2(goal_center)
+        self.route = [pygame.Vector2(p) for p in route]
+        self.route_index = 0
         self.speed = float(cfg["speed"])
         self.resistance = float(cfg["resistance"])
         self.max_resistance = float(cfg["resistance"])
         self.flee_threshold = float(cfg.get("flee_threshold", 0.0))
         self.police_avoidance = float(cfg.get("police_avoidance", 0.0))
-        self.reward = int(cfg["reward"])
         self.radius = int(cfg["radius"])
         self.color = tuple(cfg.get("color", [210, 70, 70]))
+        self.breach_power = float(cfg.get("breach_power", 8.0))
 
         self.alive = True
         self.reached_goal = False
         self.fled = False
-        self.rewarded = False
         self.slow_factor = 1.0
         self.slow_timer = 0.0
         self.attracted_to = None
@@ -53,15 +52,30 @@ class Attacker:
         else:
             self.slow_factor = 1.0
 
-        if self.attraction_timer > 0 and self.attracted_to is not None:
+        using_attraction = self.attraction_timer > 0 and self.attracted_to is not None
+        if using_attraction:
             self.attraction_timer -= dt
             target = self.attracted_to
         else:
             self.attracted_to = None
-            target = self.goal
+            target = self.route[min(self.route_index, len(self.route) - 1)]
 
-        # Transeuntes y otros arquetipos con avoidance se apartan de unidades cercanas.
-        avoidance = pygame.Vector2(0, 0)
+        direction = target - self.pos
+        if direction.length_squared() < 18 ** 2:
+            if using_attraction:
+                self.attraction_timer = 0
+                self.attracted_to = None
+                return
+
+            self.route_index += 1
+            if self.route_index >= len(self.route):
+                self.alive = False
+                self.reached_goal = True
+                return
+            target = self.route[self.route_index]
+            direction = target - self.pos
+
+        avoidance = pygame.Vector2()
         if self.police_avoidance > 0:
             for unit in security_units:
                 delta = self.pos - unit.pos
@@ -69,15 +83,8 @@ class Attacker:
                 if 0 < dist < 105:
                     avoidance += delta.normalize() * (105 - dist) / 105
 
-        direction = target - self.pos
-        if target == self.goal and direction.length_squared() < 20**2:
-            self.alive = False
-            self.reached_goal = True
-            return
-
         if direction.length_squared() > 0:
             direction = direction.normalize()
-
         if avoidance.length_squared() > 0:
             direction += avoidance.normalize() * self.police_avoidance
             if direction.length_squared() > 0:
@@ -100,10 +107,9 @@ class Attacker:
         pygame.draw.circle(screen, self.color, p, self.radius)
         pygame.draw.circle(screen, (45, 45, 45), p, self.radius, 1)
 
-        bar_w = 24
         ratio = max(0.0, self.resistance / self.max_resistance)
-        pygame.draw.rect(screen, (55, 55, 55), (p[0] - 12, p[1] - 17, bar_w, 4))
-        pygame.draw.rect(screen, (80, 190, 90), (p[0] - 12, p[1] - 17, int(bar_w * ratio), 4))
+        pygame.draw.rect(screen, (55, 55, 55), (p[0] - 12, p[1] - 17, 24, 4))
+        pygame.draw.rect(screen, (80, 190, 90), (p[0] - 12, p[1] - 17, int(24 * ratio), 4))
 
         if font and self.attraction_timer > 0:
             mark = font.render("?", True, (50, 20, 70))
@@ -115,6 +121,8 @@ class SecurityUnit:
         self.kind = kind
         self.label = cfg.get("label", kind)
         self.pos = pygame.Vector2(pos)
+        self.target_pos = pygame.Vector2(pos)
+        self.move_speed = float(cfg.get("move_speed", 85))
         self.range = float(cfg["range"])
         self.power = float(cfg.get("power", 0))
         self.cooldown = float(cfg.get("cooldown", 0.5))
@@ -127,8 +135,29 @@ class SecurityUnit:
         self.attraction_seconds = float(cfg.get("attraction_seconds", 0))
         self.color = tuple(cfg.get("color", [70, 110, 210]))
         self.timer = 0.0
+        self.selected = False
+        self.hold_position = False
+
+    def move_to(self, point):
+        self.target_pos = pygame.Vector2(point)
+        self.hold_position = False
+
+    def hold(self):
+        self.target_pos = pygame.Vector2(self.pos)
+        self.hold_position = True
+
+    def update_movement(self, dt):
+        delta = self.target_pos - self.pos
+        if delta.length_squared() < 4:
+            return
+        step = self.move_speed * dt
+        if delta.length() <= step:
+            self.pos = pygame.Vector2(self.target_pos)
+        else:
+            self.pos += delta.normalize() * step
 
     def update(self, dt, attackers):
+        self.update_movement(dt)
         self.timer = max(0.0, self.timer - dt)
         valid = [a for a in attackers if a.alive and self.pos.distance_to(a.pos) <= self.range]
         if not valid:
@@ -137,7 +166,7 @@ class SecurityUnit:
         if self.effect_type == "attract":
             affected = []
             for attacker in valid:
-                if random.random() < self.attraction_chance:
+                if random.random() < self.attraction_chance * dt * 60:
                     attacker.attract(self.pos, self.attraction_seconds)
                     affected.append(attacker)
             return affected
@@ -147,10 +176,7 @@ class SecurityUnit:
 
         if self.effect_type == "area":
             target = min(valid, key=lambda a: self.pos.distance_to(a.pos))
-            affected = [
-                a for a in attackers
-                if a.alive and a.pos.distance_to(target.pos) <= self.area_radius
-            ]
+            affected = [a for a in attackers if a.alive and a.pos.distance_to(target.pos) <= self.area_radius]
             for attacker in affected:
                 attacker.apply_control(self.power, self.slow, 1.1)
                 attacker.push_away(self.pos, self.push)
@@ -164,6 +190,8 @@ class SecurityUnit:
 
     def draw(self, screen, show_range=False):
         p = (int(self.pos.x), int(self.pos.y))
+        if self.selected:
+            pygame.draw.circle(screen, (255, 220, 80), p, self.radius + 6, 2)
         if show_range:
             pygame.draw.circle(screen, (85, 90, 105), p, int(self.range), 1)
 
@@ -175,9 +203,6 @@ class SecurityUnit:
         elif self.kind == "motorizada":
             pygame.draw.circle(screen, (35, 35, 35), p, self.radius + 2)
             pygame.draw.circle(screen, self.color, p, self.radius - 2)
-        elif self.kind == "infiltrado":
-            pygame.draw.circle(screen, self.color, p, self.radius)
-            pygame.draw.circle(screen, (225, 205, 235), p, max(3, self.radius // 3))
         else:
             pygame.draw.circle(screen, self.color, p, self.radius)
             pygame.draw.circle(screen, (225, 235, 255), p, max(3, self.radius // 3))
