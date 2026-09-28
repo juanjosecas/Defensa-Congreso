@@ -2,7 +2,7 @@
 
 Prototipo en Pygame orientado a un simulador caotico de contencion alrededor de Plaza Congreso.
 
-El objetivo ya no es "ganar": el operativo termina cuando la presion sobre el Congreso llega al 100%. La puntuacion principal es el tiempo resistido.
+El objetivo no es ganar: el operativo termina cuando la presion sobre el Congreso llega al 100%. La puntuacion principal es el tiempo resistido.
 
 ## Instalacion
 
@@ -21,23 +21,36 @@ python main.py
 - `4`: desplegar policia motorizada
 - `5`: desplegar infiltrado
 - `6`: desplegar valla
-- click izquierdo: seleccionar una unidad; sobre terreno libre, desplegar la unidad elegida
-- Shift + click: seleccion multiple
+- click izquierdo: seleccionar una unidad o desplegar sobre terreno libre
+- click y arrastre: seleccion rectangular
+- `Shift + click/drag`: agregar unidades a la seleccion
 - click derecho: mover unidades seleccionadas
+- `C`: iniciar formacion de cordon; luego marcar inicio y fin con dos clicks
 - `H`: mantener posicion
+- `[` / `]`: disminuir/aumentar velocidad de simulacion
+- `Esc`: cancelar orden/seleccion
 - `P`: pausa
 - `R`: reiniciar
 
-## Cambios de arquitectura
+## Gameplay actual
 
 - mapa esquematico basado en la red de calles alrededor de Plaza Congreso;
+- edificios no transitables;
+- peatones y manifestantes limitados a calle/plaza;
+- motos e hidrantes limitados a calle;
+- atacantes con estados de avance, espera/deambulacion y retroceso;
+- hidrante con efecto de retraso y disuasion;
+- infanteria y otras unidades de control pueden detener individuos;
+- vallas con integridad: contienen hasta romperse;
+- identificacion individual visible de atacantes y fuerzas;
+- reservas limitadas;
+- refuerzos programados durante la partida;
 - multiples rutas de ingreso;
-- reservas limitadas en lugar de dinero generado durante la partida;
-- unidades de seguridad moviles;
-- seleccion directa y orden de movimiento;
 - oleadas indefinidas con escalamiento;
 - eventos caoticos aleatorios;
+- sectores defensivos con integridad independiente;
 - presion acumulativa sobre el Congreso;
+- estadisticas de detenidos, huidas, vallas rotas y brechas;
 - tiempo de supervivencia como resultado principal.
 
-Las estadisticas siguen siendo parametros ficticios de gameplay y se editan en `config/game.yaml`.
+Las estadisticas y reglas de balance se editan en `config/game.yaml`.
