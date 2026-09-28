@@ -5,6 +5,9 @@ screen:
 
 game:
   preparation_time: 14
+  sector_damage_rate: 2.8
+  sector_recovery_rate: 0.55
+  sector_breach_pressure: 0.9
 
 reserves:
   infanteria: 18
@@ -23,6 +26,12 @@ map:
 
   plaza_rect: [270, 285, 330, 190]
   congress_rect: [135, 300, 125, 175]
+
+  sectors:
+    - {name: Norte, rect: [250, 250, 210, 75]}
+    - {name: Plaza, rect: [270, 325, 250, 150]}
+    - {name: Sur, rect: [250, 400, 210, 70]}
+    - {name: Este, rect: [460, 300, 170, 150]}
 
   streets:
     - {rect: [0, 250, 1280, 72], axis: h}
@@ -274,6 +283,17 @@ barrier:
   radius: 42
   block_factor: 0.0
   health: 190
+
+reinforcements:
+  - time: 90
+    add: {infanteria: 4, barrier: 4}
+    message: "Llegaron cuatro infantes y un lote de vallas."
+  - time: 180
+    add: {goma: 2, motorizada: 2}
+    message: "Refuerzo tardio: goma y dos motos."
+  - time: 300
+    add: {hidrante: 1, infanteria: 4}
+    message: "Finalmente llego otro hidrante."
 
 event_system:
   min_delay: 16
