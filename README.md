@@ -1,8 +1,10 @@
-# Congreso Defense
+# Defensa del Congreso
 
-Prototipo modular en Pygame. Las estadísticas son parámetros ficticios de gameplay y se editan en `config/game.yaml`.
+Prototipo en Pygame orientado a un simulador caotico de contencion alrededor de Plaza Congreso.
 
-## Instalación
+El objetivo ya no es "ganar": el operativo termina cuando la presion sobre el Congreso llega al 100%. La puntuacion principal es el tiempo resistido.
+
+## Instalacion
 
 ```bash
 python -m venv .venv
@@ -13,28 +15,29 @@ python main.py
 
 ## Controles
 
-- `1`: infantería a pie
-- `2`: infantería con balas de goma
-- `3`: camión hidrante
-- `4`: policía motorizada
-- `5`: infiltrado
-- `6`: barrera
-- click izquierdo: colocar
-- `SPACE`: iniciar oleada
+- `1`: desplegar infanteria a pie
+- `2`: desplegar infanteria con balas de goma
+- `3`: desplegar camion hidrante
+- `4`: desplegar policia motorizada
+- `5`: desplegar infiltrado
+- `6`: desplegar valla
+- click izquierdo: seleccionar una unidad; sobre terreno libre, desplegar la unidad elegida
+- Shift + click: seleccion multiple
+- click derecho: mover unidades seleccionadas
+- `H`: mantener posicion
 - `P`: pausa
 - `R`: reiniciar
 
-## Atacantes
+## Cambios de arquitectura
 
-La configuración incluye: jubilado, maestro, militante de izquierda, militante PJ, manifestante violento, transeúnte y periodista.
+- mapa esquematico basado en la red de calles alrededor de Plaza Congreso;
+- multiples rutas de ingreso;
+- reservas limitadas en lugar de dinero generado durante la partida;
+- unidades de seguridad moviles;
+- seleccion directa y orden de movimiento;
+- oleadas indefinidas con escalamiento;
+- eventos caoticos aleatorios;
+- presion acumulativa sobre el Congreso;
+- tiempo de supervivencia como resultado principal.
 
-Cada arquetipo tiene velocidad, resistencia, umbral de huida y avoidance. Los valores se eligieron únicamente para diferenciarlos como piezas de juego.
-
-## Efectos especiales
-
-- Infantería: control cercano + ralentización.
-- Goma: control a distancia.
-- Hidrante: efecto de área, empuje y ralentización.
-- Motorizada: respuesta rápida con cooldown corto.
-- Infiltrado: no aplica control; aleatoriamente atrae unidades cercanas durante unos segundos.
-- Transeúnte: intenta apartarse de unidades de seguridad cercanas.
+Las estadisticas siguen siendo parametros ficticios de gameplay y se editan en `config/game.yaml`.
