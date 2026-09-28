@@ -1,0 +1,179 @@
+screen:
+  width: 1280
+  height: 720
+  fps: 60
+
+game:
+  money: 1200
+  lives: 20
+
+goal:
+  x: 1100
+  y: 300
+  width: 130
+  height: 220
+
+spawn_points:
+  - [30, 170]
+  - [30, 360]
+  - [30, 550]
+
+attackers:
+  jubilado:
+    label: Jubilado
+    speed: 30
+    resistance: 45
+    flee_threshold: 0.70
+    police_avoidance: 0.20
+    reward: 3
+    radius: 8
+    color: [180, 165, 125]
+  maestro:
+    label: Maestro
+    speed: 52
+    resistance: 55
+    flee_threshold: 0.65
+    police_avoidance: 0.25
+    reward: 4
+    radius: 8
+    color: [80, 155, 205]
+  izquierda:
+    label: Militante de izquierda
+    speed: 55
+    resistance: 105
+    flee_threshold: 0.22
+    police_avoidance: 0.05
+    reward: 8
+    radius: 9
+    color: [205, 70, 70]
+  pj:
+    label: Militante PJ
+    speed: 53
+    resistance: 110
+    flee_threshold: 0.20
+    police_avoidance: 0.05
+    reward: 8
+    radius: 9
+    color: [75, 135, 210]
+  violento:
+    label: Manifestante violento
+    speed: 63
+    resistance: 145
+    flee_threshold: 0.08
+    police_avoidance: 0.00
+    reward: 12
+    radius: 10
+    color: [100, 35, 35]
+  transeunte:
+    label: Transeunte
+    speed: 48
+    resistance: 35
+    flee_threshold: 0.85
+    police_avoidance: 1.00
+    reward: 1
+    radius: 7
+    color: [145, 145, 145]
+  periodista:
+    label: Periodista
+    speed: 50
+    resistance: 70
+    flee_threshold: 0.45
+    police_avoidance: 0.35
+    reward: 5
+    radius: 8
+    color: [205, 175, 70]
+
+security:
+  infanteria:
+    label: Infanteria a pie
+    cost: 110
+    range: 72
+    power: 28
+    cooldown: 0.65
+    radius: 13
+    effect_type: single
+    slow: 0.65
+    color: [55, 95, 185]
+  goma:
+    label: Infanteria con balas de goma
+    cost: 170
+    range: 210
+    power: 20
+    cooldown: 0.80
+    radius: 13
+    effect_type: single
+    slow: 0.90
+    color: [35, 70, 145]
+  hidrante:
+    label: Camion hidrante
+    cost: 320
+    range: 175
+    power: 12
+    cooldown: 1.25
+    radius: 18
+    effect_type: area
+    area_radius: 75
+    push: 55
+    slow: 0.45
+    color: [55, 145, 195]
+  motorizada:
+    label: Policia motorizada
+    cost: 220
+    range: 135
+    power: 18
+    cooldown: 0.38
+    radius: 14
+    effect_type: single
+    slow: 0.82
+    color: [45, 65, 105]
+  infiltrado:
+    label: Infiltrado
+    cost: 140
+    range: 165
+    power: 0
+    cooldown: 0.5
+    radius: 10
+    effect_type: attract
+    attraction_chance: 0.035
+    attraction_seconds: 2.5
+    color: [120, 80, 145]
+
+barrier:
+  cost: 60
+  width: 48
+  height: 20
+  slow_factor: 0.50
+  radius: 55
+
+waves:
+  - interval: 0.75
+    composition:
+      jubilado: 2
+      maestro: 2
+      izquierda: 5
+      pj: 5
+      transeunte: 2
+  - interval: 0.58
+    composition:
+      jubilado: 1
+      maestro: 2
+      izquierda: 8
+      pj: 8
+      periodista: 3
+      transeunte: 3
+  - interval: 0.46
+    composition:
+      izquierda: 10
+      pj: 10
+      violento: 6
+      periodista: 4
+      transeunte: 4
+  - interval: 0.36
+    composition:
+      jubilado: 1
+      maestro: 1
+      izquierda: 14
+      pj: 14
+      violento: 10
+      periodista: 6
+      transeunte: 5
