@@ -54,6 +54,8 @@ class Game:
         self.next_wave_timer = 0.0
         self.event_message = "Prepare el operativo."
         self.event_message_timer = 4.0
+        self.attacker_uid = 0
+        self.security_uid = 0
 
     def begin_wave(self):
         wave = self.cfg["waves"][self.wave_index % len(self.cfg["waves"])]
@@ -71,19 +73,44 @@ class Game:
         pos = pygame.Vector2(spawn["pos"])
         pos.y += random.randint(-16, 16)
         route = self.cfg["routes"][spawn["route"]]
-        self.attackers.append(Attacker(pos, kind, self.cfg["attackers"][kind], route))
+        self.attacker_uid += 1
+        self.attackers.append(
+            Attacker(
+                pos,
+                kind,
+                self.cfg["attackers"][kind],
+                route,
+                self.attacker_uid,
+            )
+        )
 
     def deploy(self, pos):
+        point = pygame.Vector2(pos)
+
         if self.placement_mode == "barrier":
             if self.reserves.get("barrier", 0) <= 0:
                 return
-            self.barriers.append(Barrier(pos, self.cfg["barrier"]))
+            if not self.map.can_enter(point, "attacker"):
+                return
+            self.barriers.append(Barrier(point, self.cfg["barrier"]))
             self.reserves["barrier"] -= 1
             return
 
         if self.reserves.get(self.placement_mode, 0) <= 0:
             return
-        unit = SecurityUnit(pos, self.placement_mode, self.cfg["security"][self.placement_mode])
+
+        unit_cfg = self.cfg["security"][self.placement_mode]
+        terrain_mode = "motorized" if unit_cfg.get("movement_terrain") == "street_only" else "foot"
+        if not self.map.can_enter(point, terrain_mode):
+            return
+
+        self.security_uid += 1
+        unit = SecurityUnit(
+            point,
+            self.placement_mode,
+            unit_cfg,
+            self.security_uid,
+        )
         self.security_units.append(unit)
         self.reserves[self.placement_mode] -= 1
 
@@ -159,18 +186,19 @@ class Game:
         self.handle_event(self.events.update(dt))
 
         for attacker in self.attackers:
-            attacker.update(dt, self.barriers, self.security_units)
+            attacker.update(dt, self.barriers, self.security_units, self.map)
             if attacker.reached_goal:
                 self.invasion_pressure += attacker.breach_power
                 attacker.reached_goal = False
 
         for unit in self.security_units:
-            affected = unit.update(dt, self.attackers)
+            affected = unit.update(dt, self.attackers, self.map)
             if affected and unit.effect_type != "attract":
                 for target in affected[:5]:
                     self.effects.append([pygame.Vector2(unit.pos), pygame.Vector2(target.pos), 0.08])
 
         self.attackers = [a for a in self.attackers if a.alive]
+        self.barriers = [b for b in self.barriers if b.alive]
 
         for effect in self.effects:
             effect[2] -= dt
@@ -231,7 +259,11 @@ class Game:
         for barrier in self.barriers:
             barrier.draw(self.screen)
         for unit in self.security_units:
-            unit.draw(self.screen, show_range=mouse.distance_to(unit.pos) < 28 or unit.selected)
+            unit.draw(
+                self.screen,
+                self.tiny_font,
+                show_range=mouse.distance_to(unit.pos) < 28 or unit.selected,
+            )
         for attacker in self.attackers:
             attacker.draw(self.screen, self.tiny_font)
         for start, end, _ in self.effects:
