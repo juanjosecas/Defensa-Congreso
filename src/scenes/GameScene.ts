@@ -1,6 +1,7 @@
 import * as Phaser from "phaser";
 import {
   AttackerKind,
+  EventConfig,
   GAME,
   ReserveKind,
   SecurityKind
@@ -617,7 +618,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleEvent(
-    event: (typeof GAME.events)[number] | null
+    event: EventConfig | null
   ): void {
     if (!event) return;
 
