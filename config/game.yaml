@@ -5,6 +5,9 @@ screen:
 
 game:
   preparation_time: 14
+  sector_damage_rate: 2.8
+  sector_recovery_rate: 0.55
+  sector_breach_pressure: 0.9
 
 reserves:
   infanteria: 18
@@ -23,6 +26,12 @@ map:
 
   plaza_rect: [270, 285, 330, 190]
   congress_rect: [135, 300, 125, 175]
+
+  sectors:
+    - {name: Norte, rect: [250, 250, 210, 75]}
+    - {name: Plaza, rect: [270, 325, 250, 150]}
+    - {name: Sur, rect: [250, 400, 210, 70]}
+    - {name: Este, rect: [460, 300, 170, 150]}
 
   streets:
     - {rect: [0, 250, 1280, 72], axis: h}
@@ -57,45 +66,50 @@ routes:
     - [650, 286]
     - [530, 330]
     - [380, 360]
-    - [245, 385]
-    - [190, 385]
+    - [300, 380]
+    - [276, 385]
   yrigoyen_este:
     - [920, 430]
     - [650, 430]
     - [520, 430]
     - [380, 410]
-    - [245, 400]
-    - [190, 385]
+    - [305, 400]
+    - [276, 385]
   san_jose_sur:
     - [1045, 580]
     - [1045, 430]
     - [820, 430]
     - [590, 410]
     - [380, 395]
-    - [190, 385]
+    - [276, 385]
   uruguay_sur:
     - [785, 580]
     - [785, 430]
     - [600, 430]
     - [430, 405]
-    - [250, 390]
-    - [190, 385]
+    - [320, 395]
+    - [276, 385]
   montevideo_norte:
     - [530, 210]
     - [530, 300]
     - [470, 335]
     - [350, 365]
-    - [190, 385]
+    - [276, 385]
   callao_norte:
     - [255, 210]
     - [255, 300]
-    - [245, 350]
-    - [190, 385]
+    - [285, 345]
+    - [276, 385]
 
 attackers:
   jubilado:
     label: Jubilado
+    short_label: Jub.
     speed: 30
+    advance_weight: 0.45
+    loiter_weight: 0.55
+    deterrence_threshold: 38
+    barrier_damage: 2
     resistance: 45
     flee_threshold: 0.70
     police_avoidance: 0.20
@@ -105,7 +119,12 @@ attackers:
 
   maestro:
     label: Maestro
+    short_label: Maestro
     speed: 52
+    advance_weight: 0.52
+    loiter_weight: 0.48
+    deterrence_threshold: 45
+    barrier_damage: 3
     resistance: 55
     flee_threshold: 0.65
     police_avoidance: 0.25
@@ -115,7 +134,12 @@ attackers:
 
   izquierda:
     label: Militante de izquierda
+    short_label: Izq.
     speed: 55
+    advance_weight: 0.72
+    loiter_weight: 0.28
+    deterrence_threshold: 72
+    barrier_damage: 7
     resistance: 105
     flee_threshold: 0.22
     police_avoidance: 0.05
@@ -125,7 +149,12 @@ attackers:
 
   pj:
     label: Militante PJ
+    short_label: PJ
     speed: 53
+    advance_weight: 0.70
+    loiter_weight: 0.30
+    deterrence_threshold: 74
+    barrier_damage: 7
     resistance: 110
     flee_threshold: 0.20
     police_avoidance: 0.05
@@ -135,7 +164,12 @@ attackers:
 
   violento:
     label: Manifestante violento
+    short_label: Violento
     speed: 63
+    advance_weight: 0.86
+    loiter_weight: 0.14
+    deterrence_threshold: 88
+    barrier_damage: 15
     resistance: 145
     flee_threshold: 0.08
     police_avoidance: 0.00
@@ -145,7 +179,12 @@ attackers:
 
   transeunte:
     label: Transeunte
+    short_label: Transeunte
     speed: 48
+    advance_weight: 0.28
+    loiter_weight: 0.72
+    deterrence_threshold: 28
+    barrier_damage: 1
     resistance: 35
     flee_threshold: 0.85
     police_avoidance: 1.00
@@ -155,7 +194,12 @@ attackers:
 
   periodista:
     label: Periodista
+    short_label: Prensa
     speed: 50
+    advance_weight: 0.42
+    loiter_weight: 0.58
+    deterrence_threshold: 52
+    barrier_damage: 2
     resistance: 70
     flee_threshold: 0.45
     police_avoidance: 0.35
@@ -166,7 +210,9 @@ attackers:
 security:
   infanteria:
     label: Infanteria a pie
+    short_label: Inf.
     move_speed: 78
+    movement_terrain: foot
     range: 72
     power: 28
     cooldown: 0.65
@@ -177,7 +223,9 @@ security:
 
   goma:
     label: Infanteria con balas de goma
+    short_label: Goma
     move_speed: 72
+    movement_terrain: foot
     range: 210
     power: 20
     cooldown: 0.80
@@ -188,20 +236,25 @@ security:
 
   hidrante:
     label: Camion hidrante
+    short_label: Hidrante
     move_speed: 42
+    movement_terrain: street_only
     range: 175
-    power: 12
+    power: 0
+    deterrence: 26
     cooldown: 1.25
     radius: 18
-    effect_type: area
+    effect_type: deterrent_area
     area_radius: 75
-    push: 55
-    slow: 0.45
+    push: 34
+    slow: 0.42
     color: [55, 145, 195]
 
   motorizada:
     label: Policia motorizada
+    short_label: Moto
     move_speed: 150
+    movement_terrain: street_only
     range: 135
     power: 18
     cooldown: 0.38
@@ -212,7 +265,9 @@ security:
 
   infiltrado:
     label: Infiltrado
+    short_label: Infil.
     move_speed: 62
+    movement_terrain: foot
     range: 165
     power: 0
     cooldown: 0.5
@@ -225,8 +280,20 @@ security:
 barrier:
   width: 48
   height: 20
-  slow_factor: 0.50
-  radius: 55
+  radius: 42
+  block_factor: 0.0
+  health: 190
+
+reinforcements:
+  - time: 90
+    add: {infanteria: 4, barrier: 4}
+    message: "Llegaron cuatro infantes y un lote de vallas."
+  - time: 180
+    add: {goma: 2, motorizada: 2}
+    message: "Refuerzo tardio: goma y dos motos."
+  - time: 300
+    add: {hidrante: 1, infanteria: 4}
+    message: "Finalmente llego otro hidrante."
 
 event_system:
   min_delay: 16

@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - chaotic-operations-prototype
+      - web-phaser
   pull_request:
     branches:
       - main
@@ -18,102 +18,43 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Python ${{ matrix.python-version }}
+  web:
+    name: Web Build
     runs-on: ubuntu-latest
-    timeout-minutes: 8
-
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.11", "3.12", "3.13"]
-
-    env:
-      SDL_VIDEODRIVER: dummy
-      SDL_AUDIODRIVER: dummy
-      PYGAME_HIDE_SUPPORT_PROMPT: "1"
+    timeout-minutes: 10
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Set up Python
-        uses: actions/setup-python@v7
+      - name: Set up Node
+        uses: actions/setup-node@v7
         with:
-          python-version: ${{ matrix.python-version }}
-          cache: pip
+          node-version: "24"
+          package-manager-cache: false
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install ruff
+        run: npm install
 
-      - name: Compile Python sources
-        run: python -m compileall -q main.py game
+      - name: Type check
+        run: npm run typecheck
 
-      - name: Static error checks
-        run: ruff check --select E9,F63,F7,F82 .
-
-      - name: Validate YAML configuration
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import yaml
-
-          path = Path("config/game.yaml")
-          with path.open(encoding="utf-8") as f:
-              cfg = yaml.safe_load(f)
-
-          required = {
-              "screen", "game", "reserves", "map", "spawn_points",
-              "routes", "attackers", "security", "barrier", "waves"
-          }
-          missing = required - set(cfg)
-          if missing:
-              raise SystemExit(f"Missing config sections: {sorted(missing)}")
-
-          for spawn in cfg["spawn_points"]:
-              route = spawn["route"]
-              if route not in cfg["routes"]:
-                  raise SystemExit(f"Unknown route in spawn point: {route}")
-
-          for wave in cfg["waves"]:
-              for kind in wave["composition"]:
-                  if kind not in cfg["attackers"]:
-                      raise SystemExit(f"Unknown attacker in wave: {kind}")
-
-          print("game.yaml OK")
-          PY
-
-      - name: Headless Pygame smoke test
-        run: |
-          python - <<'PY'
-          import pygame
-          from game.game import Game
-
-          game = Game("config/game.yaml")
-          assert game.width > 0
-          assert game.height > 0
-          assert game.cfg["attackers"]
-          assert game.cfg["security"]
-          pygame.quit()
-          print("Headless initialization OK")
-          PY
+      - name: Production build
+        run: npm run build
 
   required:
     name: CI Required
     if: always()
     needs:
-      - test
+      - web
     runs-on: ubuntu-latest
     timeout-minutes: 2
 
     steps:
-      - name: Verify matrix result
+      - name: Verify web build
         run: |
-          if [[ "${{ needs.test.result }}" != "success" ]]; then
-            echo "One or more CI matrix jobs failed."
+          if [[ "${{ needs.web.result }}" != "success" ]]; then
+            echo "Web CI failed."
             exit 1
           fi
-          echo "All CI checks passed."
+          echo "Web CI passed."
