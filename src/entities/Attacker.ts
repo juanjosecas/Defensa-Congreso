@@ -5,7 +5,7 @@ import {
   Point
 } from "../config/gameConfig";
 import { Barrier } from "./Barrier";
-import { SecurityUnit } from "./SecurityUnit";
+import type { SecurityUnit } from "./SecurityUnit";
 import { CongressMap } from "../world/CongressMap";
 
 export type AttackerState = "advance" | "loiter" | "retreat";
